@@ -1,0 +1,404 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+ Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ 
+ This code is free software; you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 2 only, as
+ published by the Free Software Foundation.  Oracle designates this
+ particular file as subject to the "Classpath" exception as provided
+ by Oracle in the LICENSE file that accompanied this code.
+ 
+ This code is distributed in the hope that it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ version 2 for more details (a copy is included in the LICENSE file that
+ accompanied this code).
+ 
+ You should have received a copy of the GNU General Public License version
+ 2 along with this work; if not, write to the Free Software Foundation,
+ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ 
+ Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ or visit www.oracle.com if you need additional information or have any
+ questions.
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.openjdk</groupId>
+    <artifactId>org.openjdk.engine.python</artifactId>
+    <version>3.12</version>
+
+    <name>java.python</name>
+    <properties>
+        <executable.java>${java.home}/bin/java</executable.java>
+        <python.version>${project.version}</python.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <version.testng>7.12.0</version.testng>
+        <version.maven-compiler-plugin>3.14.0</version.maven-compiler-plugin>
+        <version.maven-javadoc-plugin>3.12.0</version.maven-javadoc-plugin>
+        <version.maven-surefire-plugin>3.5.4</version.maven-surefire-plugin>
+        <version.git-commit-id-maven-plugin>9.0.2</version.git-commit-id-maven-plugin>
+        <version.exec-maven-plugin>3.6.2</version.exec-maven-plugin>
+        <version.properties-maven-plugin>1.2.1</version.properties-maven-plugin>
+        <version.build-helper-maven-plugin>3.6.1</version.build-helper-maven-plugin>
+        <version.maven-jar-plugin>3.5.0</version.maven-jar-plugin>
+        <skip.jextract>true</skip.jextract>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${version.testng}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+        <profile>
+            <id>macos-profile</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                </os>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <version>${version.maven-jar-plugin}</version>
+                        <configuration>
+                            <classifier>macos</classifier>
+                            <archive>
+                                <manifestFile>
+                                ${project.basedir}/src/main/resources/META-INF/MANIFEST.MF
+                                </manifestFile>
+                            </archive>
+                        </configuration>
+                    </plugin>
+                    
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${version.exec-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>jextract-macos</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${executable.java}</executable>
+                                    <arguments>
+                                        <argument>JextractPython.java</argument>
+                                        <argument>${python.version}</argument>
+                                        <argument>macos</argument>
+                                    </arguments>
+                                    <skip>${skip.jextract}</skip>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${version.build-helper-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>add-source</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>add-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/main/profiles/macos/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>linux-profile</id>
+            <activation>
+                <os>
+                    <family>unix</family> 
+                    <name>Linux</name>
+                </os>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <version>${version.maven-jar-plugin}</version>
+                        <configuration>
+                            <classifier>linux</classifier>
+                            <archive>
+                                <manifestFile>
+                                ${project.basedir}/src/main/resources/META-INF/MANIFEST.MF
+                                </manifestFile>
+                            </archive>
+                        </configuration>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${version.exec-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>jextract-linux</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${executable.java}</executable>
+                                    <arguments>
+                                        <argument>JextractPython.java</argument>
+                                        <argument>${python.version}</argument>
+                                        <argument>linux</argument>
+                                    </arguments>
+                                    <skip>${skip.jextract}</skip>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${version.build-helper-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>add-source</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>add-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/main/profiles/linux/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>windows-profile</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <version>${version.maven-jar-plugin}</version>
+                        <configuration>
+                            <classifier>windows</classifier>
+                            <archive>
+                                <manifestFile>
+                                ${project.basedir}/src/main/resources/META-INF/MANIFEST.MF
+                                </manifestFile>
+                            </archive>
+                        </configuration>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${version.exec-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>jextract-windows</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${executable.java}</executable>
+                                    <arguments>
+                                        <argument>JextractPython.java</argument>
+                                        <argument>${python.version}</argument>
+                                        <argument>windows</argument>
+                                    </arguments>
+                                    <skip>${skip.jextract}</skip>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${version.build-helper-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>add-source</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>add-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/main/profiles/windows/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <build>
+        <plugins>
+            <!-- generate git commit info into a properties resource -->
+            <plugin>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
+                <version>${version.git-commit-id-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>get-git-info</id>
+                        <goals>
+                            <goal>revision</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <verbose>true</verbose>
+                    <generateGitPropertiesFile>true</generateGitPropertiesFile>
+                    <generateGitPropertiesFilename>${project.build.outputDirectory}/git.properties</generateGitPropertiesFilename>
+                    <format>properties</format>
+                </configuration>
+            </plugin>
+            <!-- run java GetPythonEnvironment.java to generate python.properties file -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${version.exec-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>compute-python-environment</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${executable.java}</executable>
+                            <arguments>
+                                <argument>GetPythonEnvironment.java</argument>
+                                <argument>${python.version}</argument>
+                                <argument>${project.build.directory}/generated-resources/python.properties</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- read properties from python.properties file -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>properties-maven-plugin</artifactId>
+                <version>${version.properties-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>load-python-properties</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>read-project-properties</goal>
+                        </goals>
+                        <configuration>
+                            <files>
+                                <file>${project.build.directory}/generated-resources/python.properties</file>
+                            </files>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${version.maven-surefire-plugin}</version>
+                <configuration>
+                    <redirectTestOutputToFile>true</redirectTestOutputToFile>
+                    <!-- run each test in a separate process -->
+                    <forkCount>1C</forkCount>
+                    <!--
+                        This ensures that a new JVM process is created for each test class so that
+                        java.library.path can be passed, prevent state state leakage and script engine
+                        resource conflicts between tests.
+                    -->
+                    <reuseForks>false</reuseForks>
+                    <!--
+                    "python.libdir" and "python.program.name" values come from "generated-resources/python-libdir.properties".
+                    We set java.library.path and java.python.program.name System properties from these property values.
+                    -->
+                    <argLine>
+                        -Djava.library.path=${python.libdir}
+                        -Dorg.openjdk.engine.python.program.name=${python.program.name}
+                        --enable-native-access=org.openjdk.engine.python
+                        --add-exports java.base/jdk.internal.vm=org.openjdk.engine.python
+                        --add-exports java.base/jdk.internal.misc=org.openjdk.engine.python
+                    </argLine>
+                    <!-- Pass LD_LIBRARY_PATH for Linux. On Linux, dlopen is used and so java.library.path is not useful. -->
+                    <environmentVariables>
+                        <LD_LIBRARY_PATH>${python.libdir}</LD_LIBRARY_PATH>
+                    </environmentVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${version.maven-compiler-plugin}</version>
+                <configuration>
+                    <source>25</source>
+                    <target>25</target>
+                    <compilerArgs>
+                        <arg>--add-exports</arg>
+                        <arg>java.base/jdk.internal.vm=org.openjdk.engine.python</arg>
+                        <arg>--add-exports</arg>
+                        <arg>java.base/jdk.internal.misc=org.openjdk.engine.python</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${version.maven-javadoc-plugin}</version>
+                <configuration>
+                    <source>25</source>
+                    <sourceFileExcludes>module-info.java</sourceFileExcludes>
+                    <excludePackageNames>
+                        org.openjdk.engine.python.bindings:org.openjdk.engine.python.bindings.*:org.openjdk.engine.python.impl
+                    </excludePackageNames>
+                    <additionalOptions>
+                        <additionalOption>--add-exports</additionalOption>
+                        <additionalOption>java.base/jdk.internal.vm=org.openjdk.engine.python</additionalOption>
+                        
+                        <additionalOption>--add-exports</additionalOption>
+                        <additionalOption>java.base/jdk.internal.misc=org.openjdk.engine.python</additionalOption>
+                    </additionalOptions>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
