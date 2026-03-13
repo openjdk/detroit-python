@@ -1,0 +1,3 @@
+Manifest-Version: 1.0
+Implementation-Vendor: Oracle Corporation
+Main-Class: org.openjdk.engine.python.PythonMain
