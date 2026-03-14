@@ -510,9 +510,7 @@ public sealed class PyObject permits PyConstant, PyDictionary, PyList, PyTuple, 
      */
     public final boolean deleteAttribute(PyObject name) throws ScriptException {
         checkEngine(name);
-        return pyEngine.withLock(() -> {
-            return PyObject_DelAttr(this.addr(), name.addr()) == 0;
-        });
+        return pyEngine.withLock(() -> PyObject_DelAttr(this.addr(), name.addr()) == 0);
     }
 
     /**
@@ -527,9 +525,11 @@ public sealed class PyObject permits PyConstant, PyDictionary, PyList, PyTuple, 
         return pyEngine.withLock(() -> {
             var namePtr = pyEngine.toPyStringAddrNoLock(name);
             pyEngine.checkAndThrowPyExceptionNoLock();
-            final boolean b = PyObject_DelAttr(this.addr(), namePtr) == 0;
-            Py_DecRef(namePtr);
-            return b;
+            try {
+                return PyObject_DelAttr(this.addr(), namePtr) == 0;
+            } finally {
+                Py_DecRef(namePtr);
+            }
         });
     }
 
