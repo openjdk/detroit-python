@@ -527,6 +527,7 @@ public sealed class PyObject permits PyConstant, PyDictionary, PyList, PyTuple, 
         return pyEngine.withLock(() -> {
             var namePtr = pyEngine.toPyStringAddrNoLock(name);
             pyEngine.checkAndThrowPyExceptionNoLock();
+            // FIXME: I do not see where this reference is released
             return PyObject_DelAttr(this.addr(), namePtr) == 0;
         });
     }
@@ -990,7 +991,7 @@ public sealed class PyObject permits PyConstant, PyDictionary, PyList, PyTuple, 
                 } else {
                     if (args[i] instanceof PyObject pyObj) {
                         checkEngine(pyObj);
-                        if (!pyObj.engineManaged && !isConstant()) {
+                        if (!pyObj.engineManaged && !pyObj.isConstant()) {
                             Py_IncRef(pyObj.addr());
                         }
                         pyArgs[i] = pyObj;

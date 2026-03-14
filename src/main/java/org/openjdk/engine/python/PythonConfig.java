@@ -24,6 +24,8 @@
  */
 package org.openjdk.engine.python;
 
+import java.util.Objects;
+
 /**
  * Manages various Python engine related System properties and other config items.
  */
@@ -61,7 +63,7 @@ public final class PythonConfig {
      * @return the detected OS value
      */
     private static OS getCurrentOS() {
-        String osName = System.getProperty("os.name").toLowerCase();
+        final var osName = Objects.requireNonNullElse(System.getProperty("os.name"), "unknown").toLowerCase();
         if (osName.contains("linux")) {
             return OS.LINUX;
         } else if (osName.contains("mac")) {
@@ -108,11 +110,12 @@ public final class PythonConfig {
      */
     public static final String SHARED_LIB_ABSPATH = System.getProperty("org.openjdk.engine.python.library.abspath");
 
+    public static final String SYSTEM_PROPERTY_PREPEND_PATH_NAME = "org.openjdk.engine.python.sys.prepend.path";
     /**
      * Path to prepend to the Python's module search path "sys.path". Default is
      * null.
      */
-    public static final String SYS_PREPEND_PATH = System.getProperty("org.openjdk.engine.python.sys.prepend.path");
+    public static final String SYS_PREPEND_PATH = System.getProperty(SYSTEM_PROPERTY_PREPEND_PATH_NAME);
 
     /**
      * Path to append to the Python's module search path "sys.path". Default is

@@ -24,37 +24,25 @@
  */
 package org.openjdk.engine.python;
 
+import org.openjdk.engine.python.bindings.*;
+
+import javax.script.Bindings;
+import javax.script.ScriptContext;
+import javax.script.ScriptEngineFactory;
+import javax.script.ScriptException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.reflect.Proxy;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
-
-import javax.script.Bindings;
-import javax.script.ScriptContext;
-import javax.script.ScriptEngineFactory;
-import javax.script.ScriptException;
-
-import static java.lang.foreign.MemorySegment.NULL;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.lang.reflect.Proxy;
+import java.util.*;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-import org.openjdk.engine.python.bindings.PyConfig;
-import org.openjdk.engine.python.bindings.PyCFunction;
-import org.openjdk.engine.python.bindings.PyCFunctionFast;
-import org.openjdk.engine.python.bindings.PyMemberDef;
-import org.openjdk.engine.python.bindings.PyMethodDef;
-import org.openjdk.engine.python.bindings.PyInterpreterConfig;
-import org.openjdk.engine.python.bindings.PyThreadState;
+import static java.lang.foreign.MemorySegment.NULL;
 import static org.openjdk.engine.python.bindings.Python_h.*;
 
 /**
@@ -78,12 +66,9 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     static {
         String mode = PythonConfig.GIL_MODE;
         GIL_MODE = switch (mode) {
-            case "default" ->
-                PyInterpreterConfig_DEFAULT_GIL();
-            case "shared" ->
-                PyInterpreterConfig_SHARED_GIL();
-            case "own" ->
-                PyInterpreterConfig_OWN_GIL();
+            case "default" -> PyInterpreterConfig_DEFAULT_GIL();
+            case "shared" -> PyInterpreterConfig_SHARED_GIL();
+            case "own" -> PyInterpreterConfig_OWN_GIL();
             default -> {
                 System.err.println("unknown gil mode: " + mode + ", assuming default");
                 yield PyInterpreterConfig_DEFAULT_GIL();
@@ -135,7 +120,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
 
     private PythonScriptEngine(ScriptEngineFactory factory,
             /* PyTheadState* */ MemorySegment pyThreadState,
-            boolean mainInterpreter) {
+                               boolean mainInterpreter) {
         this.factory = factory;
         this.mainInterpreter = mainInterpreter;
         this.engineArena = Arena.ofAuto();
@@ -189,13 +174,14 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // ScriptEngine methods
+
     /**
      * Evaluates the provided Python source using the supplied ScriptContext.
      *
      * @param script Python source code (non-null)
-     * @param sc ScriptContext providing globals and I/O
+     * @param sc     ScriptContext providing globals and I/O
      * @return evaluation result wrapped as a PyObject
-     * @throws ScriptException if compilation or evaluation fails
+     * @throws ScriptException       if compilation or evaluation fails
      * @throws IllegalStateException if the engine has been closed
      */
     @Override
@@ -220,9 +206,9 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      * supplied ScriptContext.
      *
      * @param reader Reader providing Python source
-     * @param sc ScriptContext providing globals and I/O
+     * @param sc     ScriptContext providing globals and I/O
      * @return evaluation result wrapped as a PyObject
-     * @throws ScriptException if reading, compilation, or evaluation fails
+     * @throws ScriptException       if reading, compilation, or evaluation fails
      * @throws IllegalStateException if the engine has been closed
      */
     @Override
@@ -285,6 +271,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // Compilable methods
+
     /**
      * Compiles the given Python source using the current ScriptContext.
      *
@@ -324,6 +311,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // Invocable methods
+
     /**
      * Invokes a method on a target Python object in this engine.
      *
@@ -331,10 +319,10 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      * @param name method name (non-null)
      * @param args Java arguments to convert and pass
      * @return invocation result as a PyObject
-     * @throws ScriptException if conversion or invocation fails
-     * @throws NoSuchMethodException if the method cannot be resolved
+     * @throws ScriptException          if conversion or invocation fails
+     * @throws NoSuchMethodException    if the method cannot be resolved
      * @throws IllegalArgumentException if thiz is not a PyObject for this
-     * engine
+     *                                  engine
      */
     @Override
     public synchronized Object invokeMethod(Object thiz, String name, Object... args)
@@ -360,7 +348,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      * @param name function name (non-null)
      * @param args Java arguments to convert and pass
      * @return invocation result as a PyObject
-     * @throws ScriptException if conversion or invocation fails
+     * @throws ScriptException       if conversion or invocation fails
      * @throws NoSuchMethodException if no function by that name is found
      */
     @Override
@@ -383,7 +371,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      * Returns a proxy implementing the given public interface by dispatching
      * calls to Python global functions of the same name.
      *
-     * @param <T> interface type parameter
+     * @param <T>   interface type parameter
      * @param iface public interface to implement (non-null)
      * @return proxy instance
      * @throws IllegalArgumentException if iface is not a public interface
@@ -399,12 +387,12 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      * Returns a proxy implementing the given public interface by dispatching
      * calls to methods on the specified Python object.
      *
-     * @param <T> interface type parameter
-     * @param thiz PyObject to dispatch to (owned by this engine)
+     * @param <T>   interface type parameter
+     * @param thiz  PyObject to dispatch to (owned by this engine)
      * @param iface public interface to implement (non-null)
      * @return proxy instance
      * @throws IllegalArgumentException if iface is not a public interface or
-     * thiz is invalid
+     *                                  thiz is invalid
      */
     @Override
     public synchronized <T> T getInterface(Object thiz, Class<T> iface) {
@@ -422,6 +410,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // PyConverter methods
+
     /**
      * Converts a Java String into a Python str belonging to this engine.
      *
@@ -501,14 +490,14 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      *
      * @param func the Java function implementation
      * @param name the name of the Java function in Python code
-     * @param doc the doc String for the Java function
+     * @param doc  the doc String for the Java function
      * @return a PyJavaFunction representing the converted Python function
      * object
      * @throws ScriptException if the type is unsupported or conversion fails
      */
     @Override
     public PyJavaFunction fromJava(PyJavaFunction.Func func,
-            String name, String doc) throws ScriptException {
+                                   String name, String doc) throws ScriptException {
         return withLock(() -> new PyJavaFunction(
                 PyJavaFunction.createPyCFunctionNoLock(this, func, name, doc), this));
     }
@@ -548,6 +537,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // Memory managed execution of the given Runnable
+
     /**
      * Executes the given Runnable while tracking any PyObject instances created
      * during its execution. On exit, decref/cleanup is performed for the
@@ -584,7 +574,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                     }
                     withPyThreadStateInternal(pyState, r);
                     synchronized (this) {
-                        if (! isClosed()) {
+                        if (!isClosed()) {
                             pyVirtualThreadState.remove();
                         }
                     }
@@ -605,7 +595,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             }
             withPyThreadStateInternal(pyState, r);
             synchronized (this) {
-                if (! isClosed()) {
+                if (!isClosed()) {
                     pyPlatformThreadState.remove();
                 }
             }
@@ -619,7 +609,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      *
      * @param <R> the type of the result of the operation
      * @param <X> the type of the exception that may be thrown by the operation
-     * @param op ScopedValue.CallableOp to call within a managed PyObject arena
+     * @param op  ScopedValue.CallableOp to call within a managed PyObject arena
      * @return the return value from the ScopedValue.CallableOp call
      * @throws X the exception thrown by ScopedValue.Callable is propagated
      */
@@ -792,12 +782,9 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                 });
             } catch (Exception ex) {
                 switch (ex) {
-                    case ScriptException sx ->
-                        throw sx;
-                    case RuntimeException rx ->
-                        throw rx;
-                    default ->
-                        throw new RuntimeException(ex);
+                    case ScriptException sx -> throw sx;
+                    case RuntimeException rx -> throw rx;
+                    default -> throw new RuntimeException(ex);
                 }
             }
         } else {
@@ -832,9 +819,16 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     void checkAndThrowPyExceptionNoLock() throws ScriptException {
         var pyExpAddr = PyErr_GetRaisedException();
         if (!NULL.equals(pyExpAddr)) {
-            throw new PythonException(
-                    wrap(pyExpAddr),
-                    PyUnicode_AsUTF8(PyObject_Str(pyExpAddr)).getString(0));
+            final var pyStr = PyObject_Str(pyExpAddr);
+            final String message;
+            if (NULL.equals(pyStr)) {
+                message = "<failed to get exception message>";
+                PyErr_Clear();  // clear the secondary error from PyObject_Str failing
+            } else {
+                message = PyUnicode_AsUTF8(pyStr).getString(0);  // copies to Java heap
+                Py_DecRef(pyStr);  // safe: Java String is already copied
+            }
+            throw new PythonException(wrap(pyExpAddr), message);
         }
     }
 
@@ -858,12 +852,12 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // Internals only below this point
-    private void withPyThreadStateInternal(MemorySegment curThreadState,  Runnable r) {
+    private void withPyThreadStateInternal(MemorySegment curThreadState, Runnable r) {
         try {
             r.run();
         } finally {
             synchronized (this) {
-                if (! isClosed()) {
+                if (!isClosed()) {
                     PyEval_AcquireThread(curThreadState);
                     PyThreadState_Clear(curThreadState);
                     PyThreadState_DeleteCurrent();
@@ -961,11 +955,10 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         Objects.requireNonNull(func);
         Objects.requireNonNull(name);
 
-        Arena allocator = this.engineArena;
-        var pyMethodDef = PyMemberDef.allocate(allocator);
-        PyMemberDef.name(pyMethodDef, allocator.allocateFrom(name));
+        var pyMethodDef = PyMethodDef.allocate(engineArena);
+        PyMethodDef.ml_name(pyMethodDef, engineArena.allocateFrom(name));
         if (doc != null) {
-            PyMethodDef.ml_doc(pyMethodDef, allocator.allocateFrom(doc));
+            PyMethodDef.ml_doc(pyMethodDef, engineArena.allocateFrom(doc));
         }
 
         MemorySegment pyCFuncPtr;
@@ -973,14 +966,14 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             case PyJavaFunction.NoArgFunc noArgFunc -> {
                 PyMethodDef.ml_flags(pyMethodDef, METH_STATIC() | METH_NOARGS());
                 pyCFuncPtr = PyCFunction.allocate((selfPtr, argPtr)
-                        -> withPyThreadStateDetached(
+                                -> withPyThreadStateDetached(
                                 () -> returnAddress(noArgFunc.call())),
-                        allocator);
+                        engineArena);
             }
             case PyJavaFunction.OneArgFunc oneArgFunc -> {
                 PyMethodDef.ml_flags(pyMethodDef, METH_STATIC() | METH_O());
                 pyCFuncPtr = PyCFunction.allocate((selfPtr, argPtr)
-                        -> withPyThreadStateDetached(
+                                -> withPyThreadStateDetached(
                                 () -> {
                                     // do not track the argument by possible
                                     // PyObjectArena in context. This is borrowed refs
@@ -988,12 +981,12 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                                     final PyObject pyArg = wrap(argPtr).unregister();
                                     return returnAddress(oneArgFunc.call(pyArg));
                                 }),
-                        allocator);
+                        engineArena);
             }
             case PyJavaFunction.VarArgsFunc varArgsFunc -> {
                 PyMethodDef.ml_flags(pyMethodDef, METH_STATIC() | METH_FASTCALL());
                 pyCFuncPtr = PyCFunctionFast.allocate((selfPtr, argsPtr, count)
-                        -> withPyThreadStateDetached(
+                                -> withPyThreadStateDetached(
                                 () -> {
                                     final PyObject[] pyArgs = new PyObject[(int) count];
                                     for (int i = 0; i < pyArgs.length; i++) {
@@ -1005,7 +998,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                                     }
                                     return returnAddress(varArgsFunc.call(pyArgs));
                                 }),
-                        allocator);
+                        engineArena);
             }
 
         }
@@ -1142,7 +1135,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // create the engine backed by the main interpreter
-    private final class EngineLifeCycleManager {
+    private static final class EngineLifeCycleManager {
 
         private static PythonScriptEngine theEngine;
 
@@ -1240,7 +1233,8 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                     // should not happen as we have checked error state?!
                     throw new IllegalStateException("null new thread state!");
                 }
-                return new PythonScriptEngine(fac, PyEval_SaveThread(), false);
+                PyEval_SaveThread();
+                return new PythonScriptEngine(fac, threadStatePtr, false);
             }
         }
 
@@ -1257,7 +1251,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         }
 
         private static void closeInternal(PythonScriptEngine engine,
-                MemorySegment curThreadState) {
+                                          MemorySegment curThreadState) {
             PyEval_AcquireThread(curThreadState);
             synchronized (EngineLifeCycleManager.class) {
                 if (theEngine == engine) {
@@ -1296,10 +1290,8 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                     });
                 } catch (Exception ex) {
                     switch (ex) {
-                        case RuntimeException rx ->
-                            throw rx;
-                        default ->
-                            throw new RuntimeException(ex);
+                        case RuntimeException rx -> throw rx;
+                        default -> throw new RuntimeException(ex);
                     }
                 }
             } else {
@@ -1319,10 +1311,8 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                     });
                 } catch (Exception ex) {
                     switch (ex) {
-                        case RuntimeException rx ->
-                            throw rx;
-                        default ->
-                            throw new RuntimeException(ex);
+                        case RuntimeException rx -> throw rx;
+                        default -> throw new RuntimeException(ex);
                     }
                 }
             } else {
@@ -1386,18 +1376,18 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      * Converts a supported Java object to a Python PyObject* for this engine.
      * Existing PyObject instances must belong to this engine, otherwise an
      * IllegalArgumentException is thrown.
-     *
+     * <p>
      * Ownership: for newly created objects, the caller owns a new reference.
      * For singletons (None/True/False), a borrowed singleton address is
      * returned.
-     *
+     * <p>
      * GIL: Must be called under withLock.
      *
      * @param obj Java value or PyObject
      * @return PyObject* address representing the value
      * @throws IllegalArgumentException if a PyObject belongs to a different
-     * engine
-     * @throws RuntimeException if the type is not supported
+     *                                  engine
+     * @throws RuntimeException         if the type is not supported
      */
     private MemorySegment fromJavaNoLock(Object obj) {
         if (obj == null) {
@@ -1478,7 +1468,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
      * ScriptException by inspecting the Python exception state.
      *
      * @param compiled PyObject* address for the compiled code object
-     * @param sc ScriptContext providing globals/builtins
+     * @param sc       ScriptContext providing globals/builtins
      * @return wrapped evaluation result
      * @throws ScriptException if evaluation fails
      */

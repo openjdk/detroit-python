@@ -25,107 +25,109 @@
 
 package org.openjdk.engine.python;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.InputStream;
-import java.io.IOException;
-import java.util.NoSuchElementException;
-import java.util.Properties;
-import java.util.Scanner;
+import org.openjdk.engine.python.AbstractPythonScriptEngine.PyExecMode;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-
-import org.openjdk.engine.python.AbstractPythonScriptEngine.PyExecMode;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.NoSuchElementException;
+import java.util.Properties;
+import java.util.Scanner;
 
 // Simple REPL for the python script engine.
 final class PythonMain {
-    private PythonMain() {}
+    private PythonMain() {
+    }
+
     public static void main(String[] args) {
         // make it consistent with Python REPL
-        if (System.getProperty("java.python.sys.prepend.path") == null) {
-            System.setProperty("java.python.sys.prepend.path", "");
+        if (System.getProperty(PythonConfig.SYSTEM_PROPERTY_PREPEND_PATH_NAME) == null) {
+            System.setProperty(PythonConfig.SYSTEM_PROPERTY_PREPEND_PATH_NAME, "");
         }
         ScriptEngineManager sem = new ScriptEngineManager();
-        PythonScriptEngine e = (PythonScriptEngine) sem.getEngineByName("python");
-        if (e == null) {
-            System.err.println("cannot find python script engine");
-            System.exit(1);
-        }
+        try (final var e = (PythonScriptEngine) sem.getEngineByName("python")) {
+            if (e == null) {
+                System.err.println("cannot find python script engine");
+                System.exit(1);
+            }
 
-        switch (args.length) {
-            case 1 -> {
-                if (args[0].equals("--version")) {
-                    System.out.println("java.python script engine " + e.getFactory().getEngineVersion());
-                    e.setExecMode(PyExecMode.SINGLE);
-                    try {
-                        System.out.print("Python ");
-                        e.eval("import sys; print(sys.version)");
-                    } catch (ScriptException ex) {
-                        System.err.println(ex);
-                    }
-                    Properties props = new Properties();
-                    try (InputStream in =
-                            PythonMain.class.getClassLoader().getResourceAsStream("git.properties")) {
-                        if (in != null) {
-                            props.load(in);
-                            System.out.println("Commit ID: " + props.getProperty("git.commit.id"));
-                        }
-                    } catch (IOException ignored) {}
-                    e.close();
-                } else {
-                    if (args[0].equals("-")) {
+            switch (args.length) {
+                case 1 -> {
+                    if (args[0].equals("--version")) {
+                        System.out.println("java.python script engine " + e.getFactory().getEngineVersion());
                         e.setExecMode(PyExecMode.SINGLE);
-                        repl(e);
+                        try {
+                            System.out.print("Python ");
+                            e.eval("import sys; print(sys.version)");
+                        } catch (ScriptException ex) {
+                            System.err.println(ex);
+                        }
+                        Properties props = new Properties();
+                        try (InputStream in =
+                                     PythonMain.class.getClassLoader().getResourceAsStream("git.properties")) {
+                            if (in != null) {
+                                props.load(in);
+                                System.out.println("Commit ID: " + props.getProperty("git.commit.id"));
+                            }
+                        } catch (IOException ignored) {
+                        }
                     } else {
-                        try {
-                            File f = new File(args[0]);
+                        if (args[0].equals("-")) {
+                            e.setExecMode(PyExecMode.SINGLE);
+                            repl(e);
+                        } else {
+                            try {
+                                File f = new File(args[0]);
+                                e.setExecMode(PyExecMode.FILE);
+                                e.eval(new FileReader(f));
+                            } catch (ScriptException se) {
+                                print(se);
+                            } catch (IOException io) {
+                                System.err.println(io);
+                            }
+                        }
+                    }
+                }
+                case 2 -> {
+                    switch (args[0]) {
+                        case "-c" -> {
                             e.setExecMode(PyExecMode.FILE);
-                            e.eval(new FileReader(f));
-                        } catch (ScriptException se) {
-                            print(se);
-                        } catch (IOException io) {
-                            System.err.println(io);
+                            try {
+                                e.eval(args[1]);
+                            } catch (ScriptException se) {
+                                print(se);
+                            }
+                        }
+
+                        case "-m" -> {
+                            e.setExecMode(PyExecMode.FILE);
+                            try {
+                                var str = String.format("""
+                                            import runpy
+                                            import sys
+                                            sys.stdout.isatty = lambda: True
+                                            runpy.run_module('%s', run_name='__main__')
+                                        """, args[1]);
+                                e.eval(str);
+                            } catch (ScriptException se) {
+                                print(se);
+                            }
+                        }
+
+                        default -> {
+                            System.err.println("unknown option: " + args[0]);
+                            System.exit(1);
                         }
                     }
                 }
-            }
-            case 2 -> {
-                switch (args[0]) {
-                    case "-c" -> {
-                        e.setExecMode(PyExecMode.FILE);
-                        try {
-                            e.eval(args[1]);
-                        } catch (ScriptException se) {
-                            print(se);
-                        }
-                    }
-
-                    case "-m" -> {
-                        e.setExecMode(PyExecMode.FILE);
-                        try {
-                            var str = String.format("""
-                                import runpy
-                                import sys
-                                sys.stdout.isatty = lambda: True
-                                runpy.run_module('%s', run_name='__main__')
-                            """, args[1]);
-                            e.eval(str);
-                        } catch (ScriptException se) {
-                            print(se);
-                        }
-                    }
-
-                    default -> {
-                        System.err.println("unknown option: " + args[0]);
-                        System.exit(1);
-                    }
+                default -> {
+                    e.setExecMode(PyExecMode.SINGLE);
+                    repl(e);
                 }
-            }
-            default -> {
-                e.setExecMode(PyExecMode.SINGLE);
-                repl(e);
             }
         }
     }
@@ -139,7 +141,8 @@ final class PythonMain {
                 String line = null;
                 try {
                     line = in.nextLine();
-                } catch (NoSuchElementException ignored) {}
+                } catch (NoSuchElementException ignored) {
+                }
 
                 if (line == null || line.equalsIgnoreCase("exit")) {
                     System.out.println("Bye!");
@@ -164,10 +167,10 @@ final class PythonMain {
     }
 
     private static boolean isNone(Object obj) {
-        if (! (obj instanceof PyObject)) {
+        if (!(obj instanceof PyObject)) {
             return false;
         }
-        return ((PyObject)obj).isNone();
+        return ((PyObject) obj).isNone();
     }
 
     private static void print(ScriptException se) {

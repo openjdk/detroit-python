@@ -25,17 +25,9 @@
 
 package org.openjdk.engine.python;
 
-import java.lang.foreign.MemorySegment;
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import javax.script.Bindings;
 import javax.script.ScriptException;
+import java.util.*;
 
 /**
  * Bindings implementation backed by a Python dictionary (globals) for a specific
@@ -116,7 +108,7 @@ final class PythonBindings implements Bindings, AutoCloseable {
      * @param key non-null key (must be a String)
      * @return true if a mapping exists
      * @throws ClassCastException/IllegalArgumentException if key invalid
-     * @throws RuntimeException wrapping ScriptException on failure
+     * @throws RuntimeException                            wrapping ScriptException on failure
      */
     @Override
     public boolean containsKey(Object key) {
@@ -134,7 +126,7 @@ final class PythonBindings implements Bindings, AutoCloseable {
      * @param key non-null key (must be a String)
      * @return the mapped value (as a PyObject) or null
      * @throws ClassCastException/IllegalArgumentException if key invalid
-     * @throws RuntimeException wrapping ScriptException on failure
+     * @throws RuntimeException                            wrapping ScriptException on failure
      */
     @Override
     public Object get(Object key) {
@@ -152,7 +144,7 @@ final class PythonBindings implements Bindings, AutoCloseable {
      * @param key non-null key (must be a String)
      * @return the previous value associated with key, or null
      * @throws ClassCastException/IllegalArgumentException if key invalid
-     * @throws RuntimeException wrapping ScriptException on failure
+     * @throws RuntimeException                            wrapping ScriptException on failure
      */
     @Override
     public Object remove(Object key) {
@@ -170,11 +162,15 @@ final class PythonBindings implements Bindings, AutoCloseable {
      * Returns the number of key-value mappings in these bindings.
      *
      * @return the number of entries
-     * @throws RuntimeException wrapping ScriptException on failure
+     * @throws RuntimeException wrapping ScriptException on failure, or when the Python dictionary contains more than
+     *                          {@code Integer.MAX_VALUE} elements.
      */
     @Override
     public int size() {
         try {
+            if (pyDict.size() > Integer.MAX_VALUE) {
+                throw new RuntimeException("Python dictionary is too large");
+            }
             return (int) pyDict.size();
         } catch (ScriptException ex) {
             throw new RuntimeException(ex);
@@ -260,25 +256,27 @@ final class PythonBindings implements Bindings, AutoCloseable {
      */
     @Override
     public Set<Entry<String, Object>> entrySet() {
-        Set<Entry<String, MemorySegment>> stringEntrySet = new HashSet<>();
+        final var stringEntrySet = new HashSet<Entry<String, Object>>();
         pyDict.getEngine().withPyObjectManager(() -> {
             try {
                 PyList items = pyDict.items();
                 final int size = (int) items.size();
                 for (int i = 0; i < size; i++) {
-                    PyTuple item = (PyTuple) items.getItem(i);
-                    PyObject key = item.getItem(0);
-                    PyObject value = item.getItem(1);
-                    stringEntrySet.add(new AbstractMap.SimpleImmutableEntry<>(key.toString(), value.addr()));
+                    final var item = (PyTuple) items.getItem(i);
+                    final var key = item.getItem(0);
+                    final var value = item.getItem(1);
+                    final var entry = new AbstractMap.SimpleImmutableEntry<>(key.toString(), value.addr());
+                    // get the key and value while still under the object manager
+                    stringEntrySet.add(
+                            new AbstractMap.SimpleImmutableEntry<>(
+                                    entry.getKey(),
+                                    pyDict.pyEngine.wrap(entry.getValue())));
                 }
             } catch (ScriptException ex) {
                 throw new RuntimeException(ex);
             }
         });
-        return stringEntrySet.
-            stream().
-            map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), (Object)pyDict.pyEngine.wrap(e.getValue()))).
-            collect(Collectors.toSet());
+        return stringEntrySet;
     }
 
     @Override
@@ -299,7 +297,7 @@ final class PythonBindings implements Bindings, AutoCloseable {
      * Validates that a key is a non-empty String.
      *
      * @param key the key to validate (non-null)
-     * @throws ClassCastException if not a String
+     * @throws ClassCastException       if not a String
      * @throws IllegalArgumentException if empty string
      */
     private void checkKey(Object key) {

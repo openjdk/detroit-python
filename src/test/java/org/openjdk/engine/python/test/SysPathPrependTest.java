@@ -36,7 +36,7 @@ public class SysPathPrependTest extends AbstractSysPathTest {
 
     @BeforeClass
     public void init() throws IOException {
-        super.init("org.openjdk.engine.python.sys.prepend.path");
+        super.init(PythonConfig.SYSTEM_PROPERTY_PREPEND_PATH_NAME);
     }
 
     @Override

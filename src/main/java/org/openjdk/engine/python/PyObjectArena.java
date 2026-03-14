@@ -25,11 +25,11 @@
 
 package org.openjdk.engine.python;
 
+import javax.script.ScriptException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Objects;
 import java.util.Set;
-import javax.script.ScriptException;
 
 import static org.openjdk.engine.python.bindings.Python_h.Py_DecRef;
 
@@ -83,7 +83,7 @@ final class PyObjectArena implements AutoCloseable {
      * accidental reuse. Subsequent calls are no-ops.
      */
     @Override
-    public void close() {
+    public synchronized void close() {
         if (pyObjSet != null) {
             try {
                 pyEngine.withLock(() -> {

@@ -38,7 +38,7 @@ public class SysPathEmptyPrependTest extends AbstractSysPathTest {
     @BeforeClass
     public void createEngine() {
         // empty in sys.path means current directory
-        System.setProperty("org.openjdk.engine.python.sys.prepend.path", "");
+        System.setProperty(PythonConfig.SYSTEM_PROPERTY_PREPEND_PATH_NAME, "");
         ScriptEngineManager m = new ScriptEngineManager();
         this.engine = (PythonScriptEngine) m.getEngineByName("python");
         // use current directory as the module directory
