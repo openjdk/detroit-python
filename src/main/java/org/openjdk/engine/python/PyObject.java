@@ -527,8 +527,9 @@ public sealed class PyObject permits PyConstant, PyDictionary, PyList, PyTuple, 
         return pyEngine.withLock(() -> {
             var namePtr = pyEngine.toPyStringAddrNoLock(name);
             pyEngine.checkAndThrowPyExceptionNoLock();
-            // FIXME: I do not see where this reference is released
-            return PyObject_DelAttr(this.addr(), namePtr) == 0;
+            final boolean b = PyObject_DelAttr(this.addr(), namePtr) == 0;
+            Py_DecRef(namePtr);
+            return b;
         });
     }
 
