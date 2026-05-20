@@ -166,6 +166,10 @@ public class PyConverterTest {
                     engine.invokeFunction("type", obj).toString());
             assertTrue(obj == engine.getFalse());
 
+            obj = engine.fromJava((Object)null);
+            assertEquals("<class 'NoneType'>",
+                    engine.invokeFunction("type", obj).toString());
+
             // PyObject converts trivially
             assertTrue(obj == engine.fromJava(obj));
 
