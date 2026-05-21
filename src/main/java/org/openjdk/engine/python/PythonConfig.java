@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -126,10 +126,27 @@ public final class PythonConfig {
      */
     public static final boolean JAVASTACK_IN_PYEXCEPTION;
 
+    /**
+     * Perform Python GC before engine close. Default is true.
+     */
+    public static final boolean PYTHON_GC_ON_CLOSE;
+
+    /**
+     * Perform Java GC after engine close. Default is true.
+     */
+    public static final boolean JAVA_GC_ON_CLOSE;
+
     static {
         String propVal = System.getProperty("org.openjdk.engine.python.javastack_in_pyexception", "true");
         JAVASTACK_IN_PYEXCEPTION = Boolean.parseBoolean(propVal);
+
+        propVal = System.getProperty("org.openjdk.engine.python.gc.on.close", "true");
+        PYTHON_GC_ON_CLOSE = Boolean.parseBoolean(propVal);
+
+        propVal = System.getProperty("org.openjdk.engine.python.java.gc.on.close", "true");
+        JAVA_GC_ON_CLOSE = Boolean.parseBoolean(propVal);
     }
+
 
     /**
      * Returns the configured Python program name if explicitly set via the

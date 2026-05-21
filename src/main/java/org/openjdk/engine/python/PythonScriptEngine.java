@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026 Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -672,6 +672,24 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         return new PyTuple(this, items);
     }
 
+    /**
+     * Perform Python GC.
+     */
+    public synchronized void gc() {
+        var oldMode = getExecMode();
+        setExecMode(PyExecMode.FILE);
+        try {
+            eval("import gc; gc.collect()");
+        } catch (ScriptException se) {
+            if (PythonConfig.DEBUG) {
+                IO.println("python gc failed!");
+                se.printStackTrace(System.out);
+            }
+        } finally {
+            setExecMode(oldMode);
+        }
+    }
+
     // AutoClosable
     @Override
     public synchronized void close() {
@@ -680,6 +698,9 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             return;
         }
         closeAllDependentEngines();
+        if (PythonConfig.PYTHON_GC_ON_CLOSE) {
+            gc();
+        }
         EngineLifeCycleManager.close(this);
         this.closed = true;
         this.pyInterpreterState = null;
@@ -694,6 +715,9 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         this.pyMethodDefMap.clear();
         this.engineArena = null;
         this.dependentEngines.clear();
+        if (PythonConfig.JAVA_GC_ON_CLOSE) {
+            System.gc();
+        }
     }
 
     // package-private helpers below this point
