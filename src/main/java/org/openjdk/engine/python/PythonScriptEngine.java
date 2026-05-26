@@ -490,7 +490,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             case PyJavaFunction.Func pyFunc -> {
                 return fromJava(pyFunc, pyFunc.toString(), null);
             }
-            default -> {
+            case null, default -> {
                 return withLock(() -> wrap(fromJavaNoLock(obj)));
             }
         }
