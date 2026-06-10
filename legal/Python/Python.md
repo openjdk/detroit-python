@@ -1,6 +1,22 @@
+## Python 3.12.12
 
+### Python License
+
+```
 Source files in the directory src/main/profiles were derived mechanically
 from the C-language header files of CPython version 3.12.12.
+
+Copyright
+
+Python and this documentation is:
+
+Copyright © 2001-2024 Python Software Foundation. All rights reserved.
+
+Copyright © 2000 BeOpen.com. All rights reserved.
+
+Copyright © 1995-2001 Corporation for National Research Initiatives. All rights reserved.
+
+Copyright © 1991-1995 Stichting Mathematisch Centrum. All rights reserved.
 
 A. HISTORY OF THE SOFTWARE
 ==========================
@@ -281,3 +297,4 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
+```
