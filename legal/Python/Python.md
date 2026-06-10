@@ -3,6 +3,9 @@
 ### Python License
 
 ```
+Source files in the directory src/main/profiles were derived mechanically
+from the C-language header files of CPython version 3.12.12.
+
 A. HISTORY OF THE SOFTWARE
 ==========================
 
