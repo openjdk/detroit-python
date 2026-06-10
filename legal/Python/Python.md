@@ -6,6 +6,18 @@
 Source files in the directory src/main/profiles were derived mechanically
 from the C-language header files of CPython version 3.13.9.
 
+Copyright
+
+Python and this documentation is:
+
+Copyright © 2001-2024 Python Software Foundation. All rights reserved.
+
+Copyright © 2000 BeOpen.com. All rights reserved.
+
+Copyright © 1995-2001 Corporation for National Research Initiatives. All rights reserved.
+
+Copyright © 1991-1995 Stichting Mathematisch Centrum. All rights reserved.
+
 A. HISTORY OF THE SOFTWARE
 ==========================
 
