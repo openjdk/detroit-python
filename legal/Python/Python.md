@@ -1,7 +1,8 @@
+## Python 3.12.12
 
-Source files in the directory src/main/profiles were derived mechanically
-from the C-language header files of CPython version 3.12.12.
+### Python License
 
+```
 A. HISTORY OF THE SOFTWARE
 ==========================
 
@@ -281,3 +282,4 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
+```
