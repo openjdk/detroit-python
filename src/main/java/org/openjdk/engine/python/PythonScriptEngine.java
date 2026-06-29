@@ -562,7 +562,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     /**
-     * Executes the given Runnable with potentially a new Python thread state.
+     * Executes the given Runnable with a new Python thread state.
      * On return from Runnable's run method call, Python thread state is
      * cleared. This is used to run Python script in a new thread and
      * clear Python thread state after completing the runnable. Without
@@ -577,17 +577,18 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         if (isVirtual) {
             try {
                 VirtualThreadHelper.invokeInCriticalSection(() -> {
-                    final MemorySegment pyState;
+                    final MemorySegment oldPyState, newPyState;
                     synchronized (this) {
                         checkClosed();
-                        pyState = getVirtualThreadPyThreadState();
-                    }
-                    withPyThreadStateInternal(pyState, r);
-                    synchronized (this) {
-                        if (! isClosed()) {
+                        if (pyVirtualThreadState != null) {
+                            oldPyState = pyVirtualThreadState.get();
                             pyVirtualThreadState.remove();
+                        } else {
+                            oldPyState = null;
                         }
+                        newPyState = getVirtualThreadPyThreadState();
                     }
+                    withPyThreadStateInternal(oldPyState, newPyState, r, isVirtual);
                     return null;
                 });
             } catch (Exception ex) {
@@ -598,17 +599,18 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                 }
             }
         } else {
-            final MemorySegment pyState;
+            final MemorySegment oldPyState, newPyState;
             synchronized (this) {
                 checkClosed();
-                pyState = getPlatformThreadPyThreadState();
-            }
-            withPyThreadStateInternal(pyState, r);
-            synchronized (this) {
-                if (! isClosed()) {
+                if (pyPlatformThreadState != null) {
+                    oldPyState = pyPlatformThreadState.get();
                     pyPlatformThreadState.remove();
+                } else {
+                    oldPyState = null;
                 }
+                newPyState = getPlatformThreadPyThreadState();
             }
+            withPyThreadStateInternal(oldPyState, newPyState, r, isVirtual);
         }
     }
 
@@ -882,15 +884,28 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // Internals only below this point
-    private void withPyThreadStateInternal(MemorySegment curThreadState,  Runnable r) {
+    private void withPyThreadStateInternal(
+            MemorySegment oldPyState, MemorySegment newThreadState,
+            Runnable r, boolean isVirtual) {
         try {
             r.run();
         } finally {
             synchronized (this) {
                 if (! isClosed()) {
-                    PyEval_AcquireThread(curThreadState);
-                    PyThreadState_Clear(curThreadState);
+                    PyEval_AcquireThread(newThreadState);
+                    PyThreadState_Clear(newThreadState);
                     PyThreadState_DeleteCurrent();
+                    if (isVirtual) {
+                        pyVirtualThreadState.remove();
+                        if (oldPyState != null) {
+                            pyVirtualThreadState.set(oldPyState);
+                        }
+                    } else {
+                        pyPlatformThreadState.remove();
+                        if (oldPyState != null) {
+                            pyPlatformThreadState.set(oldPyState);
+                        }
+                    }
                 }
             }
         }
