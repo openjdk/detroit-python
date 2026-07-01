@@ -40,9 +40,13 @@ import javax.script.ScriptException;
 import org.openjdk.engine.python.AbstractPythonScriptEngine.PyExecMode;
 
 // Simple REPL for the python script engine.
-final class PythonMain {
+public final class PythonMain {
     private PythonMain() {}
     public static void main(String[] args) {
+        System.exit(run(args));
+    }
+
+    public static int run(String[] args) {
         // make it consistent with Python REPL
         if (System.getProperty("java.python.sys.prepend.path") == null) {
             System.setProperty("java.python.sys.prepend.path", "");
@@ -51,7 +55,7 @@ final class PythonMain {
         PythonScriptEngine e = (PythonScriptEngine) sem.getEngineByName("python");
         if (e == null) {
             System.err.println("cannot find python script engine");
-            System.exit(1);
+            return 1;
         }
 
         switch (args.length) {
@@ -74,19 +78,24 @@ final class PythonMain {
                         }
                     } catch (IOException ignored) {}
                     e.close();
+                    return 0;
                 } else {
                     if (args[0].equals("-")) {
                         e.setExecMode(PyExecMode.SINGLE);
                         repl(e);
+                        return 0;
                     } else {
                         try {
                             File f = new File(args[0]);
                             e.setExecMode(PyExecMode.FILE);
                             e.eval(new FileReader(f));
+                            return 0;
                         } catch (ScriptException se) {
                             print(se);
+                            return 1;
                         } catch (IOException io) {
                             System.err.println(io);
+                            return 2;
                         }
                     }
                 }
@@ -97,8 +106,10 @@ final class PythonMain {
                         e.setExecMode(PyExecMode.FILE);
                         try {
                             e.eval(args[1]);
+                            return 0;
                         } catch (ScriptException se) {
                             print(se);
+                            return 1;
                         }
                     }
 
@@ -106,26 +117,29 @@ final class PythonMain {
                         e.setExecMode(PyExecMode.FILE);
                         try {
                             var str = String.format("""
-                                import runpy
-                                import sys
-                                sys.stdout.isatty = lambda: True
-                                runpy.run_module('%s', run_name='__main__')
+                            import runpy
+                            import sys
+                            sys.stdout.isatty = lambda: True
+                            runpy.run_module('%s', run_name='__main__')
                             """, args[1]);
                             e.eval(str);
+                            return 0;
                         } catch (ScriptException se) {
                             print(se);
+                            return 1;
                         }
                     }
 
                     default -> {
                         System.err.println("unknown option: " + args[0]);
-                        System.exit(1);
+                        return 3;
                     }
                 }
             }
             default -> {
                 e.setExecMode(PyExecMode.SINGLE);
                 repl(e);
+                return 0;
             }
         }
     }
