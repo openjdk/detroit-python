@@ -127,6 +127,38 @@ public class PyJavaFunctionTest {
     }
 
     @Test
+    public void testNoArgFuncExceptionToStringException() throws Exception {
+        engine.withPyObjectManager(() -> {
+            boolean[] reached = new boolean[1];
+            PyJavaFunction.NoArgFunc thrower = () -> {
+                reached[0] = true;
+                throw new RuntimeException("Java Error") {
+                    @Override
+                    public String toString() {
+                        throw new RuntimeException();
+                    }
+                };
+            };
+
+            engine.put("jthrowerToStringException", thrower);
+            engine.setExecMode(AbstractPythonScriptEngine.PyExecMode.FILE);
+            engine.eval("""
+                def pythonCaller():
+                    try:
+                        jthrowerToStringException()
+                        return None
+                    except Exception as e:
+                        return str(e);
+                """);
+            engine.setExecMode(AbstractPythonScriptEngine.PyExecMode.EVAL);
+            var res = engine.invokeFunction("pythonCaller").toString();
+            assertTrue(res.contains("Java exception: class java.lang.RuntimeException"));
+            assertTrue(reached[0]);
+            return null;
+        });
+    }
+
+    @Test
     public void testOneArgFunc() throws ScriptException {
         engine.withPyObjectManager(() -> {
             boolean[] reached = new boolean[1];
