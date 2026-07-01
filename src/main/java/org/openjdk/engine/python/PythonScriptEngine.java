@@ -963,12 +963,20 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             try (var arena = Arena.ofConfined()) {
                 String msg;
                 if (PythonConfig.JAVASTACK_IN_PYEXCEPTION) {
-                    var sw = new StringWriter();
-                    PrintWriter pw = new PrintWriter(sw);
-                    th.printStackTrace(pw);
-                    msg = sw.toString();
+                    try {
+                        var sw = new StringWriter();
+                        PrintWriter pw = new PrintWriter(sw);
+                        th.printStackTrace(pw);
+                        msg = sw.toString();
+                    } catch (Throwable th2) {
+                        msg = "Java exception: " + th2.getClass();
+                    }
                 } else {
-                    msg = th.toString();
+                    try {
+                        msg = th.toString();
+                    } catch (Throwable th2) {
+                        msg = "Java exception: " + th2.getClass();
+                    }
                 }
                 var msgPtr = arena.allocateFrom(msg);
                 PyEval_RestoreThread(tstate);
