@@ -150,7 +150,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             if (PythonConfig.DEBUG) {
                 IO.println("Initializing pyPlatformThreadState in constructor");
             }
-            this.pyPlatformThreadState = new PlatformThreadLocal();
+            this.pyPlatformThreadState = new ThreadLocal<MemorySegment>();
             this.pyPlatformThreadState.set(pyThreadState);
         }
         this.pyInterpreterState = PyThreadState.interp(pyThreadState.reinterpret(PyThreadState.sizeof()));
@@ -932,7 +932,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                 if (PythonConfig.DEBUG) {
                     IO.println("initializing pyPlatformThreadState in getPlatformThreadPyThreadState");
                 }
-                this.pyPlatformThreadState = new PlatformThreadLocal();
+                this.pyPlatformThreadState = new ThreadLocal<MemorySegment>();
             }
             if (PythonConfig.DEBUG) {
                 IO.println("Setting pyPlatformThreadState in setPyThreadState");
@@ -1061,17 +1061,6 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         return pyMethodDef;
     }
 
-    private class PlatformThreadLocal extends ThreadLocal<MemorySegment> {
-
-        @Override
-        protected MemorySegment initialValue() {
-            if (PythonConfig.DEBUG) {
-                IO.println("PyThreadState_New in PlatformThreadLocal.initialValue");
-            }
-            return PyThreadState_New(PythonScriptEngine.this.pyInterpreterState);
-        }
-    }
-
     private <T> T withLockInternal(MemorySegment curThreadState, ThrowingSupplier<T> supplier)
             throws ScriptException {
         PyEval_AcquireThread(curThreadState);
@@ -1113,9 +1102,17 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             if (PythonConfig.DEBUG) {
                 IO.println("initializing pyPlatformThreadState in getPlatformThreadPyThreadState");
             }
-            this.pyPlatformThreadState = new PlatformThreadLocal();
+            this.pyPlatformThreadState = new ThreadLocal<MemorySegment>();
         }
-        return this.pyPlatformThreadState.get();
+        MemorySegment pyState = this.pyPlatformThreadState.get();
+        if (pyState == null) {
+            if (PythonConfig.DEBUG) {
+                IO.println("PyThreadState_New in getPlatformThreadPyThreadState");
+            }
+            pyState =  PyThreadState_New(PythonScriptEngine.this.pyInterpreterState);
+            this.pyPlatformThreadState.set(pyState);
+        }
+        return pyState;
     }
 
     private void setSysPath() throws ScriptException {
