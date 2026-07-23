@@ -72,4 +72,37 @@ public class SharedEngineInThreadsTest {
             IO.println("closing main engine");
         }
     }
+
+    @Test
+    public void withPyThreadStateTestInNonMainEngine() throws Exception {
+        var m = new ScriptEngineManager();
+        var e1 = (PythonScriptEngine) m.getEngineByName("python");
+        e1.setExecMode(PythonScriptEngine.PyExecMode.FILE);
+        var e2 = (PythonScriptEngine) m.getEngineByName("python");
+        e2.setExecMode(PythonScriptEngine.PyExecMode.FILE);
+
+        Thread t = new Thread(() -> {
+            e2.withPyThreadState(() -> {
+                try {
+                    e2.eval("""
+                    print("e2 eval");
+                    """);
+                } catch (ScriptException se) {
+                   if (se instanceof PythonException pe) {
+                     pe.print();
+                  } else {
+                       System.err.println(se);
+                  }
+              }
+          });
+       });
+
+        t.start();
+        e1.eval("""
+        print("e1 eval");
+        """);
+        t.join();
+        e2.close();
+        e1.close();
+    }
 }
