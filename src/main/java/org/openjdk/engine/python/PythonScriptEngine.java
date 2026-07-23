@@ -603,6 +603,8 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             synchronized (this) {
                 checkClosed();
                 if (pyPlatformThreadState != null) {
+                    // The following ThreadLocal.get() should NOT compute
+                    // new thread local state.
                     oldPyState = pyPlatformThreadState.get();
                     pyPlatformThreadState.remove();
                 } else {
