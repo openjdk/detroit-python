@@ -581,6 +581,8 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                     synchronized (this) {
                         checkClosed();
                         if (pyVirtualThreadState != null) {
+                            // The following ThreadLocal.get() should NOT compute
+                            // new thread local state.
                             oldPyState = pyVirtualThreadState.get();
                             pyVirtualThreadState.remove();
                         } else {
