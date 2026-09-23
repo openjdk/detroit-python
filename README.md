@@ -58,3 +58,8 @@ runs a sample script file
 ```sh
 sh run.sh samples/Hello.java
 ```
+
+* Recommended usage note
+
+The detroit-python engine must not be used to execute arbitrary or untrusted code.
+Recommended that script code be not interpolated with user input arguments.
