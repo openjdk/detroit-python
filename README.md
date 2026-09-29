@@ -61,5 +61,9 @@ sh run.sh samples/Hello.java
 
 * Recommended usage note
 
-The detroit-python engine must not be used to execute arbitrary or untrusted code.
-Recommended that script code be not interpolated with user input arguments.
+The CPython runtime provides access to many operating system features and resources.
+As such, using detroit-python to run arbitrary or untrusted Python code is
+strongly discouraged.
+
+Moreover, even when running trusted Python code, it is recommended that script code
+be not interpolated with user input arguments without proper validation.
