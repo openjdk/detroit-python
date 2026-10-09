@@ -302,6 +302,7 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
      * Return true if the remote process is alive.
      *
      * @return true if the remote process is alive. Otherwise false.
+     * @throws ScriptException if remote process check fails
      */
     public boolean isRemoteAlive() throws ScriptException {
         // if the process is already dead just return.
@@ -321,13 +322,14 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
      *
      * @return exit code of the remote process
      * @throws IllegalStateException if the process is still alive
+     * @throws ScriptException if remote process check fails
      */
     public int getRemoteExitCode() throws ScriptException {
         if (this.remoteExitCode == null) {
             synchronized (this) {
                 PyObject obj = remoteClient.callMethod("get_remote_exit_code").unregister();
                 if (obj.isNone()) {
-                    throw new IllegalArgumentException("remote process is still alive");
+                    throw new IllegalStateException("remote process is still alive");
                 } else {
                     this.remoteExitCode = Integer.valueOf((int) obj.toLong());
                     obj.destroy();
