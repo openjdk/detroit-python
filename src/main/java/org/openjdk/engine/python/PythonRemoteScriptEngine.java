@@ -85,8 +85,28 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
     private final PythonScriptEngine localPyEngine;
     private final PyObject remoteClient;
     private final long remotePid;
-    private volatile boolean remoteAlive;
-    private volatile Integer remoteExitCode;
+
+    // remote process state
+    sealed interface RemoteState permits Alive, Exited {
+        public int exitCode();
+        public default boolean isAlive() {
+            return this instanceof Alive;
+        }
+    }
+
+    // remote process is alive
+    record Alive() implements RemoteState {
+        @Override
+        public int exitCode() {
+            throw new IllegalStateException("remote process is still alive");
+        }
+    }
+
+    // remote process has exited
+    record Exited(int exitCode) implements RemoteState {
+    }
+
+    private volatile RemoteState remoteState = new Alive();
 
     PythonRemoteScriptEngine(PythonScriptEngine localPyEnigne) throws ScriptException {
         this.localPyEngine = Objects.requireNonNull(localPyEnigne);
@@ -305,15 +325,8 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
      * @throws ScriptException if remote process check fails
      */
     public boolean isRemoteAlive() throws ScriptException {
-        // if the process is already dead just return.
-        if (this.remoteAlive) {
-            synchronized (this) {
-                PyObject obj = remoteClient.callMethod("is_remote_alive").unregister();
-                this.remoteAlive = obj.isTrue();
-                obj.destroy();
-            }
-        }
-        return this.remoteAlive;
+        checkRemoteState();
+        return remoteState.isAlive();
     }
 
     /**
@@ -325,19 +338,8 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
      * @throws ScriptException if remote process check fails
      */
     public int getRemoteExitCode() throws ScriptException {
-        if (this.remoteExitCode == null) {
-            synchronized (this) {
-                PyObject obj = remoteClient.callMethod("get_remote_exit_code").unregister();
-                if (obj.isNone()) {
-                    throw new IllegalStateException("remote process is still alive");
-                } else {
-                    this.remoteExitCode = Integer.valueOf((int) obj.toLong());
-                    obj.destroy();
-                }
-            }
-        }
-
-        return this.remoteExitCode;
+        checkRemoteState();
+        return remoteState.exitCode();
     }
 
     /**
@@ -642,6 +644,22 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // internals only below this point
+
+    private void checkRemoteState() throws ScriptException {
+        if (remoteState instanceof Exited) {
+            return;
+        }
+
+        synchronized (this) {
+            PyObject obj = remoteClient.callMethod("get_remote_exit_code").unregister();
+            if (! obj.isNone()) {
+                // move to exit state.
+                remoteState = new Exited(Integer.valueOf((int) obj.toLong()));
+                obj.destroy();
+            }
+        }
+    }
+
     private PyObject initRemoteEngineClientConstructor() throws ScriptException {
         // create new ScriptContext to avoid polluting the global scope.
         try (var pyBindings = (PythonBindings) localPyEngine.createBindings()) {
