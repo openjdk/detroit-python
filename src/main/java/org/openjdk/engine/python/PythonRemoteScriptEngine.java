@@ -79,13 +79,23 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
         }
     }
 
+    // Timeout in milliseconds for polling remote Process Queue
+    private static int TIMEOUT = Integer.getInteger("org.openjdk.engine.python.remote_timeout", 1000);
+
     private final PythonScriptEngine localPyEngine;
     private final PyObject remoteClient;
+    private final long remotePid;
+    private volatile boolean remoteAlive;
+    private volatile Integer remoteExitCode;
 
     PythonRemoteScriptEngine(PythonScriptEngine localPyEnigne) throws ScriptException {
         this.localPyEngine = Objects.requireNonNull(localPyEnigne);
         PyObject remoteEngineConstr = initRemoteEngineClientConstructor().unregister();
-        this.remoteClient = remoteEngineConstr.call().unregister();
+        // Python Queue API expects timeout in seconds as floating point value
+        this.remoteClient = remoteEngineConstr.call(TIMEOUT/1000.0).unregister();
+        PyObject obj = remoteClient.callMethod("get_remote_pid").unregister();
+        this.remotePid = obj.toLong();
+        obj.destroy();
     }
 
     // remote support
@@ -280,6 +290,55 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
     }
 
     /**
+     * Return the remote process id.
+     *
+     * @return the remote process id
+     */
+    public long getRemotePid() {
+        return remotePid;
+    }
+
+    /**
+     * Return true if the remote process is alive.
+     *
+     * @return true if the remote process is alive. Otherwise false.
+     */
+    public boolean isRemoteAlive() throws ScriptException {
+        // if the process is already dead just return.
+        if (this.remoteAlive) {
+            synchronized (this) {
+                PyObject obj = remoteClient.callMethod("is_remote_alive").unregister();
+                this.remoteAlive = obj.isTrue();
+                obj.destroy();
+            }
+        }
+        return this.remoteAlive;
+    }
+
+    /**
+     * Return exit code of the remote process is the process is dead.
+     * If not, throws IllegalStateException.
+     *
+     * @return exit code of the remote process
+     * @throws IllegalStateException if the process is still alive
+     */
+    public int getRemoteExitCode() throws ScriptException {
+        if (this.remoteExitCode == null) {
+            synchronized (this) {
+                PyObject obj = remoteClient.callMethod("get_remote_exit_code").unregister();
+                if (obj.isNone()) {
+                    throw new IllegalArgumentException("remote process is still alive");
+                } else {
+                    this.remoteExitCode = Integer.valueOf((int) obj.toLong());
+                    obj.destroy();
+                }
+            }
+        }
+
+        return this.remoteExitCode;
+    }
+
+    /**
      * Closes this engine and releases remote resources. Idempotent.
      *
      * @throws RuntimeException wrapping ScriptException if remote close fails
@@ -289,6 +348,7 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
         if (this.closed) {
             return;
         }
+
         try {
             remoteClient.callMethod("engine_close_command");
         } catch (ScriptException ex) {
