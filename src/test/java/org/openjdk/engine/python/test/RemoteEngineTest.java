@@ -356,4 +356,47 @@ public class RemoteEngineTest {
             assertEquals(callable.call().toString(), "hello");
         }
     }
+
+    @Test
+    public void testRemoteCrash() throws Exception {
+        boolean caughtException = false;
+        long processId = -1;
+        // designated exit code by which remote process
+        // is coded to exit with.
+        int exitCode = 33;
+        var re = (PythonRemoteScriptEngine) PythonRemoteScriptEngine.create(engine);
+        try {
+            processId = re.getRemotePid();
+            re.setExecMode(PyExecMode.FILE);
+            re.put("exitCode", exitCode);
+            // simulate remote crash by deliberate exit
+            re.eval("""
+            import sys
+            sys.exit(exitCode)
+            """);
+        } catch (ScriptException se) {
+            assertTrue(se.getMessage().contains(
+                String.format("remote process %d exited with code %d",
+                    processId, exitCode)));
+            caughtException = true;
+        }
+        assertTrue(caughtException, "no exception?");
+        assertFalse(re.isRemoteAlive());
+        assertTrue(re.getRemoteExitCode() == exitCode);
+
+        caughtException = false;
+        // try to eval after remote process died!
+        try {
+            re.eval("print('hello')");
+        } catch (ScriptException se) {
+            assertTrue(se.getMessage().contains(
+                String.format("remote process %d exited with code %d",
+                    processId, exitCode)));
+            caughtException = true;
+        }
+        assertTrue(caughtException, "no exception?");
+
+        // we should be able to close the engine still!
+        re.close();
+    }
 }
