@@ -26,6 +26,7 @@
 
 import builtins
 import multiprocessing
+import queue
 import pickle
 import sys
 import typing
@@ -271,25 +272,43 @@ class RemoteEngineServer:
         self.result_queue.close()
         sys.exit(exit_code)
 
-
-
 def server(command_queue: Queue, result_queue: Queue):
     remote_engine_server = RemoteEngineServer(command_queue, result_queue)
     remote_engine_server.run()
 
 class RemoteEngineClient:
-    def __init__(self):
-        self.command_queue = multiprocessing.Queue()
-        self.result_queue = multiprocessing.Queue()
+    def __init__(self, timeout):
+        # timeout used to read/write from/to result/command queues
+        self.timeout = timeout
+        self.command_queue = multiprocessing.Queue(1)
+        self.result_queue = multiprocessing.Queue(1)
+        self.server_proc = multiprocessing.Process(target=server, args=(self.command_queue, self.result_queue))
+        self.server_proc.start()
 
-        server_proc = multiprocessing.Process(target=server, args=(self.command_queue, self.result_queue))
-        server_proc.start()
+    def put_command(self, cmd: Command):
+        while True:
+            try:
+                self.command_queue.put(cmd, timeout = self.timeout)
+                return;
+            except queue.Full:
+                if not self.server_proc.is_alive():
+                    raise RuntimeError(
+                        f"remote process {self.server_proc.pid} exited with code {self.server_proc.exitcode}");
+
+    def get_result(self):
+        while True:
+            try:
+                return self.result_queue.get(timeout = self.timeout)
+            except queue.Empty:
+                if not self.server_proc.is_alive():
+                    raise RuntimeError(
+                        f"remote process {self.server_proc.pid} exited with code {self.server_proc.exitcode}");
 
     def send_command(self, cmd: Command):
         if not is_picklable(cmd.data):
             raise Exception("cannot pickle command data")
-        self.command_queue.put(cmd)
-        result = self.result_queue.get()
+        self.put_command(cmd)
+        result = self.get_result()
         if result.error is None:
             return result.value
         else:
@@ -344,6 +363,18 @@ class RemoteEngineClient:
         return self.send_command(Command(CommandType.CALL_METHOD, method_name, picklable_list([ obj, *args ])))
 
     def engine_close_command(self):
-        self.send_command(Command(CommandType.DONE, "", None))
+        # don't bother sending DONE command if the
+        # remote process is dead already!
+        if self.server_proc.is_alive():
+            self.send_command(Command(CommandType.DONE, "", None))
         self.command_queue.close()
         self.result_queue.close()
+
+    def get_remote_pid(self):
+        return self.server_proc.pid
+
+    def is_remote_alive(self):
+        return self.server_proc.is_alive()
+
+    def get_remote_exit_code(self):
+        return self.server_proc.exitcode
