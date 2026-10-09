@@ -79,13 +79,43 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
         }
     }
 
+    // Timeout in milliseconds for polling remote Process Queue
+    private static int TIMEOUT = Integer.getInteger("org.openjdk.engine.python.remote_timeout", 1000);
+
     private final PythonScriptEngine localPyEngine;
     private final PyObject remoteClient;
+    private final long remotePid;
+
+    // remote process state
+    sealed interface RemoteState permits Alive, Exited {
+        public int exitCode();
+        public default boolean isAlive() {
+            return this instanceof Alive;
+        }
+    }
+
+    // remote process is alive
+    record Alive() implements RemoteState {
+        @Override
+        public int exitCode() {
+            throw new IllegalStateException("remote process is still alive");
+        }
+    }
+
+    // remote process has exited
+    record Exited(int exitCode) implements RemoteState {
+    }
+
+    private volatile RemoteState remoteState = new Alive();
 
     PythonRemoteScriptEngine(PythonScriptEngine localPyEnigne) throws ScriptException {
         this.localPyEngine = Objects.requireNonNull(localPyEnigne);
         PyObject remoteEngineConstr = initRemoteEngineClientConstructor().unregister();
-        this.remoteClient = remoteEngineConstr.call().unregister();
+        // Python Queue API expects timeout in seconds as floating point value
+        this.remoteClient = remoteEngineConstr.call(TIMEOUT/1000.0).unregister();
+        PyObject obj = remoteClient.callMethod("get_remote_pid").unregister();
+        this.remotePid = obj.toLong();
+        obj.destroy();
     }
 
     // remote support
@@ -280,6 +310,39 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
     }
 
     /**
+     * Return the remote process id.
+     *
+     * @return the remote process id
+     */
+    public long getRemotePid() {
+        return remotePid;
+    }
+
+    /**
+     * Return true if the remote process is alive.
+     *
+     * @return true if the remote process is alive. Otherwise false.
+     * @throws ScriptException if remote process check fails
+     */
+    public boolean isRemoteAlive() throws ScriptException {
+        checkRemoteState();
+        return remoteState.isAlive();
+    }
+
+    /**
+     * Return exit code of the remote process is the process is dead.
+     * If not, throws IllegalStateException.
+     *
+     * @return exit code of the remote process
+     * @throws IllegalStateException if the process is still alive
+     * @throws ScriptException if remote process check fails
+     */
+    public int getRemoteExitCode() throws ScriptException {
+        checkRemoteState();
+        return remoteState.exitCode();
+    }
+
+    /**
      * Closes this engine and releases remote resources. Idempotent.
      *
      * @throws RuntimeException wrapping ScriptException if remote close fails
@@ -289,6 +352,7 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
         if (this.closed) {
             return;
         }
+
         try {
             remoteClient.callMethod("engine_close_command");
         } catch (ScriptException ex) {
@@ -580,6 +644,22 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // internals only below this point
+
+    private void checkRemoteState() throws ScriptException {
+        if (remoteState instanceof Exited) {
+            return;
+        }
+
+        synchronized (this) {
+            PyObject obj = remoteClient.callMethod("get_remote_exit_code").unregister();
+            if (! obj.isNone()) {
+                // move to exit state.
+                remoteState = new Exited(Integer.valueOf((int) obj.toLong()));
+                obj.destroy();
+            }
+        }
+    }
+
     private PyObject initRemoteEngineClientConstructor() throws ScriptException {
         // create new ScriptContext to avoid polluting the global scope.
         try (var pyBindings = (PythonBindings) localPyEngine.createBindings()) {
