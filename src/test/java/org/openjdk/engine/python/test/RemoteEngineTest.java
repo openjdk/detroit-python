@@ -399,4 +399,18 @@ public class RemoteEngineTest {
         // we should be able to close the engine still!
         re.close();
     }
+
+    @Test
+    public void testRemoteExitCode() throws Exception {
+        var re = (PythonRemoteScriptEngine) PythonRemoteScriptEngine.create(engine);
+        assertTrue(re.isRemoteAlive());
+        boolean caughtException = false;
+        try {
+            re.getRemoteExitCode();
+        } catch (IllegalStateException ise) {
+            caughtException = true;
+        }
+        assertTrue(caughtException, "no exception?");
+        re.close();
+    }
 }
