@@ -23,6 +23,8 @@
 
 package org.openjdk.engine.python.test;
 
+import java.util.Timer;
+import java.util.TimerTask;
 import javax.script.*;
 import org.openjdk.engine.python.*;
 import org.openjdk.engine.python.AbstractPythonScriptEngine.PyExecMode;
@@ -239,7 +241,7 @@ public class ScriptEngineTest {
     @Test
     public void testSetExecModeViaScriptContext() throws ScriptException {
         engine.withPyObjectManager(() -> {
-             engine.getContext().setAttribute("python-exec-mode",
+            engine.getContext().setAttribute("python-exec-mode",
                 "FILE", ScriptContext.ENGINE_SCOPE);
             engine.eval("""
             def cube(x):
@@ -250,6 +252,68 @@ public class ScriptEngineTest {
             var res = (PyObject) engine.eval("cube(3)");
             assertEquals(res.toLong(), 27);
             return null;
+        });
+    }
+
+    @Test
+    public void testMainEngineRunAway() {
+        engine.withPyObjectManager(() -> {
+            try {
+                engine.setExecMode(PyExecMode.FILE);
+
+                // tells whether second engine was successfully created
+                boolean[] secondEngineCreated = new boolean[1];
+                // used to track if we have already created timer or not
+                boolean[] isTimerScheduled = new boolean[1];
+                // script engine factory
+                var engineFactory = engine.getFactory();
+
+                Timer timer = new Timer();
+                // Timer task that creates another script engine
+                TimerTask task = new TimerTask() {
+                    @Override
+                    public void run() {
+                        // cancel the timer
+                        timer.cancel();
+                        // attempt to create second engine
+                        var secondEngine = engineFactory.getScriptEngine();
+                        try {
+                            ((AutoCloseable)secondEngine).close();
+                        } catch (Exception ignored) {}
+                        // succeeded
+                        secondEngineCreated[0] = true;
+                    }
+                };
+
+                // java callback function that checks boolean status
+                engine.put("secondEngineCreated", engine.fromJava(
+                    (PyJavaFunction.NoArgFunc)() -> {
+                        try {
+                            // Schedule a timer that will attempt
+                            // to create engine from timer task thread.
+                            // Don't schedule if we have already scheduled.
+                            if (! isTimerScheduled[0]) {
+                                timer.schedule(task, 2000);
+                                isTimerScheduled[0] = true;
+                            }
+                            return engine.fromJava(secondEngineCreated[0]);
+                        } catch (ScriptException se) {
+                            throw new RuntimeException(se);
+                        }
+                    }));
+
+                // execute runaway loop and break only if
+                // callback from java returns true
+                engine.eval("""
+                import time
+                while True:
+                    time.sleep(0.1)
+                    if secondEngineCreated():
+                       break
+                """);
+            } catch (ScriptException se) {
+                throw new RuntimeException(se);
+            }
         });
     }
 }

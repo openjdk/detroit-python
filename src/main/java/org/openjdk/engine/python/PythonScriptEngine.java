@@ -42,10 +42,9 @@ import javax.script.ScriptEngineFactory;
 import javax.script.ScriptException;
 
 import static java.lang.foreign.MemorySegment.NULL;
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.openjdk.engine.python.bindings.PyConfig;
@@ -130,8 +129,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     // PyMethodDef objects are expensive because of lambda backed
     // C pointer to function implementation. Caching those is worthwhile.
     private final Map<PyJavaFunction.Func, MemorySegment> pyMethodDefMap;
-    // If this is mainInterpreter, we track all the sub-interpreter backed ScriptEngines.
-    private final ArrayList<WeakReference<AbstractPythonScriptEngine>> dependentEngines;
+    private final AtomicInteger dependentEngineCount;
 
     private PythonScriptEngine(ScriptEngineFactory factory,
             /* PyTheadState* */ MemorySegment pyThreadState,
@@ -140,6 +138,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         this.mainInterpreter = mainInterpreter;
         this.engineArena = Arena.ofAuto();
         this.PY_OBJECTS_ARENA = ScopedValue.newInstance();
+        this.dependentEngineCount = new AtomicInteger();
         if (Thread.currentThread().isVirtual()) {
             if (PythonConfig.DEBUG) {
                 IO.println("Initializing pyVirtualThreadState in constructor");
@@ -174,7 +173,6 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             throw new RuntimeException(se);
         }
         this.pyMethodDefMap = Collections.synchronizedMap(new IdentityHashMap<>());
-        this.dependentEngines = new ArrayList<>();
     }
 
     /**
@@ -699,7 +697,10 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             // already closed. Nothing to do!
             return;
         }
-        closeAllDependentEngines();
+        int depCount = dependentEngineCount.intValue();
+        if (depCount != 0) {
+            throw new IllegalStateException("There are " + depCount + " dependent engine(s)");
+        }
         if (PythonConfig.PYTHON_GC_ON_CLOSE) {
             gc();
         }
@@ -716,7 +717,6 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         this.pyVirtualThreadState = null;
         this.pyMethodDefMap.clear();
         this.engineArena = null;
-        this.dependentEngines.clear();
         if (PythonConfig.JAVA_GC_ON_CLOSE) {
             System.gc();
         }
@@ -865,22 +865,12 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     }
 
     // add a dependent script engine to this engine
-    synchronized void addDependentEngine(AbstractPythonScriptEngine engine) {
-        dependentEngines.add(new WeakReference<>(engine));
+    void addDependentEngine(AbstractPythonScriptEngine engine) {
+        dependentEngineCount.getAndIncrement();
     }
 
-    // close all engines dependent on this engine
-    synchronized void closeAllDependentEngines() {
-        for (var depEngineRef : dependentEngines) {
-            final var depEngine = depEngineRef.get();
-            if (depEngine != null) {
-                try {
-                    depEngine.close();
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-        dependentEngines.clear();
+    void removeDependentEngine(AbstractPythonScriptEngine engine) {
+        dependentEngineCount.getAndDecrement();
     }
 
     // Internals only below this point
@@ -1322,6 +1312,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                     theEngine = null;
                 } else {
                     Py_EndInterpreter(curThreadState);
+                    theEngine.removeDependentEngine(engine);
                 }
             }
         }
