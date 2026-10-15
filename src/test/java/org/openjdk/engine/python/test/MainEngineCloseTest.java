@@ -52,6 +52,17 @@ public class MainEngineCloseTest {
         var mainEngine = (PythonScriptEngine) m.getEngineByName("python");
         assertTrue(mainEngine.isMainEngine());
         var subEngine = (PythonScriptEngine) m.getEngineByName("python");
+        boolean caughtException = false;
+        try {
+            mainEngine.close();
+        } catch (IllegalStateException ise) {
+            caughtException = true;
+        }
+
+        assertFalse(mainEngine.isClosed());
+        assertFalse(subEngine.isClosed());
+        assertTrue(caughtException);
+        subEngine.close();
         mainEngine.close();
         assertTrue(mainEngine.isClosed());
         // closing main engine closes sub-engines too!

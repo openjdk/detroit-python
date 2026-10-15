@@ -42,10 +42,9 @@ import javax.script.ScriptEngineFactory;
 import javax.script.ScriptException;
 
 import static java.lang.foreign.MemorySegment.NULL;
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.openjdk.engine.python.bindings.PyConfig;
@@ -130,55 +129,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
     // PyMethodDef objects are expensive because of lambda backed
     // C pointer to function implementation. Caching those is worthwhile.
     private final Map<PyJavaFunction.Func, MemorySegment> pyMethodDefMap;
-
-    private static final class DependencyManager implements AutoCloseable {
-        // we track all the dependent engines
-        private final ArrayList<WeakReference<AbstractPythonScriptEngine>> dependentEngines;
-        private boolean closed;
-
-        DependencyManager() {
-            dependentEngines = new ArrayList<>();
-        }
-
-        synchronized void add(AbstractPythonScriptEngine e) {
-            if (! closed) {
-                Objects.requireNonNull(e);
-                expungeStaleReferences();
-                dependentEngines.add(new WeakReference<>(e));
-            }
-        }
-
-        @Override
-        public synchronized void close() {
-            if (closed) {
-                return;
-            }
-
-            closed = true;
-            closeAllDependents();
-        }
-
-        // internals only below this point
-        private void expungeStaleReferences() {
-            // get rid of all already cleared WeakReferences
-            dependentEngines.removeIf(ref -> ref.get() == null);
-        }
-
-        private void closeAllDependents() {
-            for (var depEngineRef : dependentEngines) {
-                final var depEngine = depEngineRef.get();
-                if (depEngine != null) {
-                    try {
-                        depEngine.close();
-                    } catch (Throwable ignored) {
-                    }
-                }
-            }
-            dependentEngines.clear();
-        }
-    }
-
-    private final DependencyManager depManager;
+    private final AtomicInteger dependentEngineCount;
 
     private PythonScriptEngine(ScriptEngineFactory factory,
             /* PyTheadState* */ MemorySegment pyThreadState,
@@ -187,7 +138,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
         this.mainInterpreter = mainInterpreter;
         this.engineArena = Arena.ofAuto();
         this.PY_OBJECTS_ARENA = ScopedValue.newInstance();
-        this.depManager = new DependencyManager();
+        this.dependentEngineCount = new AtomicInteger();
         if (Thread.currentThread().isVirtual()) {
             if (PythonConfig.DEBUG) {
                 IO.println("Initializing pyVirtualThreadState in constructor");
@@ -750,7 +701,10 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
             // already closed. Nothing to do!
             return;
         }
-        depManager.close();
+        int depCount = dependentEngineCount.intValue();
+        if (depCount != 0) {
+            throw new IllegalStateException("There are " + depCount + " dependent engine(s)");
+        }
         if (PythonConfig.PYTHON_GC_ON_CLOSE) {
             gc();
         }
@@ -916,7 +870,11 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
 
     // add a dependent script engine to this engine
     void addDependentEngine(AbstractPythonScriptEngine engine) {
-        depManager.add(engine);
+        dependentEngineCount.getAndIncrement();
+    }
+
+    void removeDependentEngine(AbstractPythonScriptEngine engine) {
+        dependentEngineCount.getAndDecrement();
     }
 
     // Internals only below this point
@@ -1358,6 +1316,7 @@ public final class PythonScriptEngine extends AbstractPythonScriptEngine {
                     theEngine = null;
                 } else {
                     Py_EndInterpreter(curThreadState);
+                    theEngine.removeDependentEngine(engine);
                 }
             }
         }
