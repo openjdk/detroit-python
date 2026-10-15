@@ -364,6 +364,7 @@ public final class PythonRemoteScriptEngine extends AbstractPythonScriptEngine {
             }
             this.closed = true;
         }
+        remoteClient.pyEngine.removeDependentEngine(this);
         if (PythonConfig.JAVA_GC_ON_CLOSE) {
             System.gc();
         }
