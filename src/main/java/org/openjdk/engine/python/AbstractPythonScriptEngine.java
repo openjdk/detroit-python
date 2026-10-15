@@ -156,8 +156,13 @@ public abstract class AbstractPythonScriptEngine extends AbstractScriptEngine
      * After this call, further operations will throw IllegalStateException.
      * This method is idempotent.
      * <p>
-     * When the main interpreter backed ScriptEngine is closed, all sub-interpreter
-     * backed ScriptEngine instances are also closed.
+     * When the main interpreter backed ScriptEngine is closed, there should not
+     * be any subinterpreter backed ScriptEngine alive. Otherwise IllegalStateException
+     * will be thrown. Similarly, all remote engines created using a particular local
+     * engine should be closed before calling close on the local engine. Or else
+     * IllegalStateException will be thrown.
+     *
+     * @throws IllegalStateException if there are engines dependent on this engine are active.
      */
     @Override
     public abstract void close();
